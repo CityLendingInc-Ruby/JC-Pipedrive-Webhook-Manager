@@ -13,11 +13,11 @@ class WebhookController < ApplicationController
     topic = sns.topic('arn:aws:sns:us-east-1:443216489626:jc-pipedrive-webhook-manager-job-processing')
 
     topic.publish({
-      deal_id: deal_id,
-      is_bulk_update: is_bulk_update,
-      stage_id: stage_id,
-      name_lastname: name_lastname,
-      person_id: person_id
+      deal_id: "#{deal_id}",
+      is_bulk_update: "#{is_bulk_update}",
+      stage_id: "#{stage_id}",
+      name_lastname: "#{name_lastname}",
+      person_id: "#{person_id}"
     })
 
     render json: "OK", status: :ok
