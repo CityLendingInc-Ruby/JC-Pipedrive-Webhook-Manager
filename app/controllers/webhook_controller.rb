@@ -1,6 +1,6 @@
 class WebhookController < ApplicationController
   def index
-    jets meta = params["meta"]
+    meta = params["meta"]
     deal_id = meta["id"]
     is_bulk_update = meta["is_bulk_update"]
 
