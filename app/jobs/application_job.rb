@@ -1,4 +1,98 @@
 class ApplicationJob < Jets::Job::Base
   # Adjust to increase the default timeout for all Job classes
   class_timeout 60
+
+  def admin_access_token
+    username = ENV["ADMIN_USERNAME"]
+    password = ENV["ADMIN_PASSWORD"]
+
+    uri = URI.parse("https://api.elliemae.com/oauth2/v1/token")
+    request = Net::HTTP::Post.new(uri)
+    request.basic_auth(ENV["ENCOMPASS_CLIENT_ID"], ENV["ENCOMPASS_CLIENT_SECRET"])
+    request.set_form_data(
+      "grant_type" => "password",
+      "password" => "#{password}",
+      "username" => "#{username}@encompass:#{ENV["ENCOMPASS_INSTANCE"]}"
+    )
+
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+
+    if response.is_a?(Net::HTTPSuccess)
+      answer = JSON.parse(response.body)
+      admin_user_access_token = answer["access_token"]
+    else
+      nil
+    end
+  end
+
+  def create_loan(access_token, body)
+    uri = URI.parse("https://api.elliemae.com/encompass/v1/loans?loanFolder=Prospects&view=id")
+    request = Net::HTTP::Post.new(uri)
+    request["Authorization"] = "Bearer #{access_token}"
+    request.body = JSON.dump(body)
+
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+
+    if response.is_a?(Net::HTTPSuccess)
+      answer = JSON.parse(response.body)
+      loan_guid = answer["id"]
+    else
+      nil
+    end
+  end
+
+  def loans_by_filter(access_token, filter)
+    uri = URI.parse("https://api.elliemae.com/encompass/v1/loanPipeline")
+    request = Net::HTTP::Post.new(uri)
+    request["Authorization"] = "Bearer #{access_token}"
+    request.body = JSON.dump(filter)
+
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+    if response.is_a?(Net::HTTPSuccess)
+      JSON.parse(response.body)
+    else
+      nil
+    end
+  end
+  
+  def token_revocation(access_token)
+    uri = URI.parse("https://api.elliemae.com/oauth2/v1/token/revocation")
+    request = Net::HTTP::Post.new(uri)
+    request.basic_auth(ENV["ENCOMPASS_CLIENT_ID"], ENV["ENCOMPASS_CLIENT_SECRET"])
+    request.set_form_data(
+      "token" => "#{access_token}"
+    )
+
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+    
+    if response.is_a?(Net::HTTPSuccess)
+      true
+    else
+      false
+    end
+  end
 end
