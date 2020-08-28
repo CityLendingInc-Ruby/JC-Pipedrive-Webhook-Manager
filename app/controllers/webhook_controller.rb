@@ -3,7 +3,7 @@ class WebhookController < ApplicationController
     meta = params["meta"]
     deal_id = meta["id"]
     is_bulk_update = meta["is_bulk_update"]
-
+    
     current = params["current"]
     stage_id = current["stage_id"]
     name_lastname = current["title"]

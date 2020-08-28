@@ -53,6 +53,26 @@ class ApplicationJob < Jets::Job::Base
     end
   end
 
+  def fields_reader(access_token, loan_guid, filter)
+    uri = URI.parse("https://api.elliemae.com/encompass/v1/#{loan_guid}/fieldReader")
+    request = Net::HTTP::Post.new(uri)
+    request["Authorization"] = "Bearer #{access_token}"
+    request.body = JSON.dump(filter)
+
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+    if response.is_a?(Net::HTTPSuccess)
+      JSON.parse(response.body)
+    else
+      nil
+    end
+  end
+
   def loans_by_filter(access_token, filter)
     uri = URI.parse("https://api.elliemae.com/encompass/v1/loanPipeline")
     request = Net::HTTP::Post.new(uri)
