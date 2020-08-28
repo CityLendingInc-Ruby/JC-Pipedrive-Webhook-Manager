@@ -4,9 +4,6 @@ class WebhookJob < ApplicationJob
   sns_event "jc-pipedrive-webhook-manager-job-processing"
   def process
     records = event["Records"]
-    p "------------------------------ EVENT (BEGIN) ------------------------"
-    p event
-    p "------------------------------ EVENT (END) --------------------------"
     if records.size > 0
       p "Records Size: #{records.size}"
       item = records[0]
@@ -20,7 +17,7 @@ class WebhookJob < ApplicationJob
       
       is_bulk_update = message_as_json["is_bulk_update"]
       encompass_loan_number = message_as_json["encompass_loan_number"]
-      
+
       if !is_bulk_update && encompass_loan_number.blank?
         name_lastname = message_as_json["name_lastname"]
         person_id = message_as_json["person_id"]
