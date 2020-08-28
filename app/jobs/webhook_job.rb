@@ -16,9 +16,9 @@ class WebhookJob < ApplicationJob
       end
       
       is_bulk_update = message_as_json["is_bulk_update"]
-      encompass_loan_number = message_as_json["encompass_loan_number"]
-
-      if !is_bulk_update && encompass_loan_number.blank?
+      encompass_loan_guid = message_as_json["encompass_loan_guid"]
+      
+      if !is_bulk_update && encompass_loan_guid.blank?
         name_lastname = message_as_json["name_lastname"]
         person_id = message_as_json["person_id"]
         stage_id = message_as_json["stage_id"]
