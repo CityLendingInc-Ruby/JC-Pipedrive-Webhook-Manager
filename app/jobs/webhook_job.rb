@@ -168,7 +168,19 @@ class WebhookJob < ApplicationJob
                       '8804ec59511693ea1a2789605ebb60634367a164': (loan_guid.nil? ? "" : loan_guid),
                       '39ef775c13d95d43807a1185aa9068a49748646d': (loan_number.nil? ? "" : loan_number),
                       'c4612b19a74ccaa46af6deb7692d83f53bb56a5c': (loan_purpose.nil? ? "" : loan_purpose),
-                      'd27f00dd19b57f6edfffed557cf76592aeda93da': (loan_type.nil? ? "" : loan_type)
+                      'd27f00dd19b57f6edfffed557cf76592aeda93da': (loan_type.nil? ? "" : loan_type),
+                      '88135c0b31f5236ac50afb55dc00f3fd6cf6cff5': (interest_rate.nil? ? "" : interest_rate),
+                      'f34a68618c73a6336f5c27056b7229bfde08b330': (current_address.nil? ? "" : current_address),
+                      '3f4f6458517519d0a98974a4c626bc8264807cec': (subject_property_address.nil? ? "" : subject_property_address),
+                      'a4d5d105dda89732508c86905804dc93cd48dbd1': (employer_name.nil? ? "" : employer_name),
+                      '4bcd94d9c13feb7a3f2818abaf3a3b77108039fc': (employer_address.nil? ? "" : employer_address),
+                      'f4a94170b859ba6cf8ed8eb86745004809eb2cd6': (borrowers_total_income.nil? ? "" : borrowers_total_income),
+                      'd7328b1d41abe2be39b7ecc351f2ce61a2fd71a1': (appraisal_value.nil? ? "" : appraisal_value),
+                      'bc1276296f056f035541dc45a1de1ade78786fc0': (current_loan_balance.nil? ? "" : current_loan_balance),
+                      '3b7f6087cce987adb91868a2415427ff8786c40d': (birthday.nil? ? "" : birthday),
+                      'bffb23c1a52bd7b398aad7589f767450b74f4ff2': (closing_date.nil? ? "" : closing_date),
+                      'bd0cfc7013f35386da8c2c7d5fbe78c049a1881d': (piti.nil? ? "" : piti),
+                      '7494f8dbd3435031ab6925c296912c20573617f4': (ltv.nil? ? "" : ltv)
                     }
                     request.body = JSON.dump(body)
 
