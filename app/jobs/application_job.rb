@@ -54,9 +54,11 @@ class ApplicationJob < Jets::Job::Base
   end
 
   def fields_reader(access_token, loan_guid, filter)
-    uri = URI.parse("https://api.elliemae.com/encompass/v1/#{loan_guid}/fieldReader")
+    uri = URI.parse("https://api.elliemae.com/encompass/v1/loans/#{loan_guid}/fieldReader")
     request = Net::HTTP::Post.new(uri)
     request["Authorization"] = "Bearer #{access_token}"
+    request["Content-Type"] = "application/json"
+    #request.body = "['364','1172','19','3','FR0104','FR0106','FR0107','FR0108','11','12','14','15','FE0102','FE0104','FE0105','FE0106','FE0107','FE0110','FE0117','736','356','1402','748','353','2','912']"
     request.body = JSON.dump(filter)
 
     req_options = {
@@ -69,6 +71,8 @@ class ApplicationJob < Jets::Job::Base
     if response.is_a?(Net::HTTPSuccess)
       JSON.parse(response.body)
     else
+      p response
+      p response.body
       nil
     end
   end

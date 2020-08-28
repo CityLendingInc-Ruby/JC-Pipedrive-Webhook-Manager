@@ -4,14 +4,23 @@ class WebhookJob < ApplicationJob
   sns_event "jc-pipedrive-webhook-manager-job-processing"
   def process
     records = event["Records"]
+    p "------------------------------ EVENT (BEGIN) ------------------------"
+    p event
+    p "------------------------------ EVENT (END) --------------------------"
     if records.size > 0
       p "Records Size: #{records.size}"
       item = records[0]
       message = item["Sns"]["Message"]
-      message_as_json = JSON.parse(message)
+      
+      if ENV["JETS_ENV"] == "production"
+        message_as_json = JSON.parse(message)
+      else
+        message_as_json = message
+      end
+      
       is_bulk_update = message_as_json["is_bulk_update"]
       encompass_loan_number = message_as_json["encompass_loan_number"]
-
+      
       if !is_bulk_update && encompass_loan_number.blank?
         name_lastname = message_as_json["name_lastname"]
         person_id = message_as_json["person_id"]
@@ -115,9 +124,14 @@ class WebhookJob < ApplicationJob
 
                   loan_fields = fields_reader(access_token, loan_guid, filter)
                   if !loan_fields.nil?
+                    loan_number, loan_purpose, loan_type, interest_rate, current_address, 
+                      subject_property_address, employer_name, employer_address, borrowers_total_income, 
+                        appraisal_value, birthday, closing_date, ltv, current_loan_balance, piti = nil 
+                    
                     current_address_fields = []
                     subject_property_address_fields = []
                     employer_address_fields = []
+
                     loan_fields.each do |item|
                       if item["fieldId"] == "364"
                         loan_number = item["value"]
