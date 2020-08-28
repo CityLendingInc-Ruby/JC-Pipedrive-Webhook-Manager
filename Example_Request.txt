@@ -1,0 +1,7 @@
+# These are the steps for testing this app without using 
+# 1. jets c
+# 2. Run the following:
+# 2.1 
+    event = {'Records'=>[{'EventSource'=>'aws:sns', 'EventVersion'=>'1.0', 'EventSubscriptionArn'=>'arn:aws:sns:us-east-1:443216489626:jc-pipedrive-webhook-manager-job-processing:a70dd379-6a44-4e72-9527-87ed39ba1011', 'Sns'=>{'Type'=>'Notification', 'MessageId'=>'a3f8d519-16b0-598a-97d6-82da2f786160', 'TopicArn'=>'arn:aws:sns:us-east-1:443216489626:jc-pipedrive-webhook-manager-job-processing', 'Subject'=>nil, 'Message'=>{'deal_id': '1271','is_bulk_update': false,'stage_id': '10','name_lastname': 'Example - Danilo Garcia','person_id': '1078','encompass_loan_number': ''}, 'Timestamp'=>'2020-08-28T16:57:44.984Z', 'SignatureVersion'=>'1', 'Signature'=>'kkyHBhYudc7GbF9mMspiQD095PEfqZEqtlluBLf9w7/e/EEyJ2eDnIeJdjfPiZz2tXiT1bmDVH/im3HMjzCMhPbpgvkw9cRgOo2z4yQgQ1c1vRCHj4jVnuvho+iAYGYoKiKo7t+P6gTszRRYSlcQewVDfIi6xNEofVk7nJ1ZsEkfSOf3KTOMjgrC6mH2pyiCK6v0ywPYd0A0KuB5N2OZhF7v/FsDjQ7pIi8Q72jGM+7Uk1s3leXAJzcNXYDWQOd9H+5IjZOQUgRJuJcHWrQu73UArRsKKdQs6w8ZWb+TnsDmLSnxkQU2VUw/V10L5sisYWH1cpAf0V8RL+cNB/sR6w==', 'SigningCertUrl'=>'https://sns.us-east-1.amazonaws.com/SimpleNotificationService-a86cb10b4e1f29c941702d737128f7b6.pem', 'UnsubscribeUrl'=>'https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-east-1:443216489626:jc-pipedrive-webhook-manager-job-processing:a70dd379-6a44-4e72-9527-87ed39ba1011', 'MessageAttributes'=>{}}}]}
+# 2.2
+    WebhookJob.perform_now(:process,event)
