@@ -173,6 +173,6 @@ class UpdateDealsJob < ApplicationJob
         p "ERROR GETTING DEALS FROM PIPEDRIVE"
       end
     end
-    p token_revocation(access_token) unless access_token.nil?
+    token_revocation(access_token) unless access_token.nil?
   end
 end
