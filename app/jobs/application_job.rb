@@ -49,6 +49,10 @@ class ApplicationJob < Jets::Job::Base
       answer = JSON.parse(response.body)
       loan_guid = answer["id"]
     else
+      p "---------------------------- RESPONSE -------------------------"
+      p response
+      p response.body
+      p "---------------------------------------------------------------"
       nil
     end
   end
