@@ -3,8 +3,8 @@ class UpdateDealsJob < ApplicationJob
   
   rate "1 hour"
   def process
-    stage_id = "10"
-    start = "0"
+    stage_id = 10
+    start = 0
     sw = true
     access_token = nil
 

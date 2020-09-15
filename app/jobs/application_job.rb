@@ -98,6 +98,50 @@ class ApplicationJob < Jets::Job::Base
       nil
     end
   end
+
+  def loan_is_open(access_token, loan_guid)
+    body = {
+      customFields: [{    
+          id: 'CX.ACTIVE',
+          stringValue: "Y"
+        },
+        {    
+          id: 'CX.PROJECT',
+          stringValue: "Upload Documents"
+        }
+      ]
+    }
+    
+    uri = URI.parse("https://api.elliemae.com/encompass/v1/loans/#{loan_guid}?view=id")
+    request = Net::HTTP::Patch.new(uri)
+    request["Authorization"] = "Bearer #{access_token}"
+    request.body = JSON.dump(body)
+    
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+    
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+    if response.is_a?(Net::HTTPSuccess)
+      loan_response = JSON.parse(response.body)
+      if loan_response.has_key?("id")
+        false
+      else
+        true
+      end
+    else
+      true
+    end
+  end
+
+  def open_file(url)
+    url = URI(url)
+    Net::HTTP.start(url.host) do |http|
+      resp = http.get(url.path)
+    end
+  end
   
   def token_revocation(access_token)
     uri = URI.parse("https://api.elliemae.com/oauth2/v1/token/revocation")
@@ -120,5 +164,12 @@ class ApplicationJob < Jets::Job::Base
     else
       false
     end
+  end
+
+  def upload_files_to_efolder(access_token, pipedrive_file_id, pipedrive_file_name, loan_guid)
+    url = "https://api.pipedrive.com/v1/files/#{pipedrive_file_id}/download"
+    file = open_file(url)
+
+    
   end
 end

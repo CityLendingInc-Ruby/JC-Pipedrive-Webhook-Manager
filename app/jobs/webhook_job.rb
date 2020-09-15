@@ -1,3 +1,4 @@
+# Encoding: utf-8
 class WebhookJob < ApplicationJob
   class_timeout 90
   
@@ -17,6 +18,7 @@ class WebhookJob < ApplicationJob
       
       is_bulk_update = message_as_json["is_bulk_update"]
       encompass_loan_guid = message_as_json["encompass_loan_guid"]
+      deal_id = message_as_json["deal_id"]
       
       if !is_bulk_update && encompass_loan_guid.blank?
         name_lastname = message_as_json["name_lastname"]
@@ -39,7 +41,7 @@ class WebhookJob < ApplicationJob
         if response.is_a?(Net::HTTPSuccess)
           answer = JSON.parse(response.body)
           data = answer["data"]
-          if data["name"] == "Pipeline"
+          if data["name"] == "Cita Agendada - Oficina" || data["name"] == "Trabajándose / Mandar Información a LOS" || data["name"] == "Pipeline - After Disclosures"  
             url = "https://api.pipedrive.com/v1/persons/#{person_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
             uri = URI.parse(url)
             request = Net::HTTP::Get.new(uri)
@@ -170,8 +172,6 @@ class WebhookJob < ApplicationJob
                       end
                     end
                     
-                    deal_id = message_as_json["deal_id"]
-
                     url = "https://api.pipedrive.com/v1/deals/#{deal_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
                     uri = URI.parse(url)
                     request = Net::HTTP::Put.new(uri, 'Content-Type' => 'application/json')
@@ -230,6 +230,90 @@ class WebhookJob < ApplicationJob
         else
           p "ERROR REQUESTING STAGE INFORMATION FROM PIPEDRIVE"
         end
+      elsif !is_bulk_update
+        stage_id = message_as_json["stage_id"]
+        files_count = message_as_json["files_count"]
+
+        url = "https://api.pipedrive.com/v1/stages/#{stage_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
+        uri = URI.parse(url)
+        request = Net::HTTP::Get.new(uri)
+        
+        req_options = {
+          use_ssl: uri.scheme == "https",
+        }
+        
+        response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+          http.request(request)
+        end
+        
+        if response.is_a?(Net::HTTPSuccess)
+          answer = JSON.parse(response.body)
+          data = answer["data"]
+          additional_data = answer["additional_data"]
+          if data["name"] == "Cita Agendada - Oficina" || data["name"] == "Trabajándose / Mandar Información a LOS" || data["name"] == "Pipeline - After Disclosures"
+            if files_count > 0
+              sw = true
+              start = 0
+              access_token = nil
+
+              while sw
+                url = "https://api.pipedrive.com/v1/deals/#{deal_id}/files?start=#{start}&api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
+                uri = URI.parse(url)
+                request = Net::HTTP::Get.new(uri)
+                
+                req_options = {
+                  use_ssl: uri.scheme == "https",
+                }
+                
+                response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+                  http.request(request)
+                end
+                
+                if response.is_a?(Net::HTTPSuccess)
+                  answer = JSON.parse(response.body)
+                  data = answer["data"]
+                  
+                  data.each do |item|
+                    file_id = item["id"]
+                    file_name = item["remote_id"]
+                    
+                    items = FileQueue.where(file_id: item["id"])
+
+                    if items.count == 0
+                      # The file must be uploaded to Encompass
+                      if access_token.nil?
+                        access_token = admin_access_token
+                      end
+
+                      if !loan_is_open(access_token, loan_guid)
+                        upload_files_to_efolder(access_token, file_id, file_name, encompass_loan_guid)
+                      else
+                        p "LOAN IS OPEN, QUEQUING FILE TO BE UPLOADED TO ENCOMPASS"
+                        fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid)
+                        fq.save
+                      end                      
+                      
+                    end
+                  end
+                  
+                  pagination = additional_data["pagination"]
+                  more_items_in_collection = pagination["more_items_in_collection"]
+                  if more_items_in_collection
+                    start_temp = pagination["start"]
+                    limit = pagination["limit"]
+                    next_temp = start_temp + limit + 1
+                    start = next_temp.to_s
+                  end
+                  sw = more_items_in_collection
+                else
+                  p "ERROR REQUESTING FILES FROM A DEAL FROM PIPEDRIVE"      
+                end
+              end             
+            end
+          end          
+        else
+          p "ERROR REQUESTING STAGE INFORMATION FROM PIPEDRIVE"
+        end        
       end
     end
   end
