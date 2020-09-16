@@ -16,7 +16,7 @@ class ApplicationJob < Jets::Job::Base
     )
 
     req_options = {
-      use_ssl: uri.scheme == "https",
+      use_ssl: uri.scheme == "https"
     }
 
     response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
@@ -170,6 +170,6 @@ class ApplicationJob < Jets::Job::Base
     url = "https://api.pipedrive.com/v1/files/#{pipedrive_file_id}/download"
     file = open_file(url)
 
-    
+
   end
 end
