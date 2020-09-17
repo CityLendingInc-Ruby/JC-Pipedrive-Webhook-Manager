@@ -7,4 +7,5 @@ class FileQueue
   field :loan_guid
   field :comment
   field :saved_encompass, :boolean, default: false
+  field :url_to_download_file
 end

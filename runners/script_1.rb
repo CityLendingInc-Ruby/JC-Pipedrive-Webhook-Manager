@@ -42,7 +42,7 @@ def loan_is_open(access_token, loan_guid)
       },
       {    
         id: 'CX.PROJECT',
-        stringValue: "Upload Documents"
+        stringValue: "JC Pipedrive Webhook Manager"
       }
     ]
   }
@@ -67,16 +67,70 @@ def loan_is_open(access_token, loan_guid)
       true
     end
   else
+    p response.body
     true
   end
+end
+
+def upload_document_to_encompass(access_token, loan_guid, filename, file)
+  filename = filename.encode(Encoding::ASCII, invalid: :replace, undef: :replace, replace: "")
+  messages = []
+  uri = URI.parse("https://api.elliemae.com/encompass/v1/loans/#{loan_guid}/attachments/url?view=id")
+  request = Net::HTTP::Post.new(uri)
+  request["Authorization"] = "Bearer #{access_token}"
+  request.body = JSON.dump({
+    title: filename,
+    fileWithExtension: filename,
+    createReason: 4
+  })
+  
+  req_options = {
+    use_ssl: uri.scheme == "https",
+  }
+  
+  response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+    http.request(request)
+  end
+  
+  if response.is_a?(Net::HTTPSuccess)
+    answer = JSON.parse(response.body)
+    media_url = answer["mediaUrl"]
+    uri = URI.parse(media_url)
+    request = Net::HTTP::Put.new(uri)
+    request.body = file
+
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+    
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+
+    if response.is_a?(Net::HTTPSuccess)
+      messages.push({status: "ok", message: "#{filename}: Attachment was uploaded successfully"})
+    else
+      messages.push({status: "error", message: "#{filename}: Error uploading attachment"})
+    end
+  else
+    answer = JSON.parse(response.body)
+    messages.push({status: "error", message: "#{filename}: #{answer['details']}"})
+  end
+  messages
 end
 
 
 loan_guid = "6082c09e-9d19-466b-a5be-fc7edf9c95a0"
 pipedrive_file_id = "13971"
+access_token = admin_access_token
 
 url = "https://api.pipedrive.com/v1/files/#{pipedrive_file_id}/download?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
 url_2 = "https://pipedrive-files.s3-eu-west-1.amazonaws.com/WhatsApp-Image-2020-09-14-at-11.25.09-AM-July_7394875112129956296c78615a027408bf90a68aa432d33.jpeg?response-content-disposition=filename%3D%22WhatsApp%20Image%202020-09-14%20at%2011.25.09%20AM%20July.jpeg%22&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAXBWJG2HXWQXJX6FZ%2F20200916%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20200916T021100Z&X-Amz-SignedHeaders=Host&X-Amz-Expires=3600&X-Amz-Signature=03ae63d91509650d5b8361c76e78f7ca8bb48d0d23a53b9f14456c98a2fec715"
 file = open(url)
 
-p file
+if !loan_is_open(access_token, loan_guid)
+  upload_document_to_encompass(access_token, loan_guid, "Example.jpeg", file.read)
+else
+  p "LOAN IS OPEN"
+end
+p "FINISH UPLOAD"

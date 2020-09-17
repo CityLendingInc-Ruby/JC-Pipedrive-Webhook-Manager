@@ -107,7 +107,7 @@ class ApplicationJob < Jets::Job::Base
         },
         {    
           id: 'CX.PROJECT',
-          stringValue: "Upload Documents"
+          stringValue: "JC Pipedrive Webhook Manager"
         }
       ]
     }
@@ -166,10 +166,50 @@ class ApplicationJob < Jets::Job::Base
     end
   end
 
-  def upload_files_to_efolder(access_token, pipedrive_file_id, pipedrive_file_name, loan_guid)
-    url = "https://api.pipedrive.com/v1/files/#{pipedrive_file_id}/download"
-    file = open_file(url)
-
-
+  def upload_document_to_encompass(access_token, loan_guid, filename, file)
+    filename = filename.encode(Encoding::ASCII, invalid: :replace, undef: :replace, replace: "")
+    messages = []
+    uri = URI.parse("https://api.elliemae.com/encompass/v1/loans/#{loan_guid}/attachments/url?view=id")
+    request = Net::HTTP::Post.new(uri)
+    request["Authorization"] = "Bearer #{access_token}"
+    request.body = JSON.dump({
+      title: filename,
+      fileWithExtension: filename,
+      createReason: 4
+    })
+    
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+    
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+    
+    if response.is_a?(Net::HTTPSuccess)
+      answer = JSON.parse(response.body)
+      media_url = answer["mediaUrl"]
+      uri = URI.parse(media_url)
+      request = Net::HTTP::Put.new(uri)
+      request.body = file
+  
+      req_options = {
+        use_ssl: uri.scheme == "https",
+      }
+      
+      response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+        http.request(request)
+      end
+  
+      if response.is_a?(Net::HTTPSuccess)
+        messages.push({status: "ok", message: "#{filename}: Attachment was uploaded successfully"})
+      else
+        messages.push({status: "error", message: "#{filename}: Error uploading attachment"})
+      end
+    else
+      answer = JSON.parse(response.body)
+      messages.push({status: "error", message: "#{filename}: #{answer['details']}"})
+    end
+    messages
   end
 end
