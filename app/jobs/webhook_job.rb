@@ -1,3 +1,4 @@
+# Encoding: utf-8
 class WebhookJob < ApplicationJob
   class_timeout 90
   
@@ -15,81 +16,75 @@ class WebhookJob < ApplicationJob
         message_as_json = message
       end
       
+      stage_ids = ["3","8","10"]
       is_bulk_update = message_as_json["is_bulk_update"]
       encompass_loan_guid = message_as_json["encompass_loan_guid"]
+      deal_id = message_as_json["deal_id"]
       
       if !is_bulk_update && encompass_loan_guid.blank?
         name_lastname = message_as_json["name_lastname"]
         person_id = message_as_json["person_id"]
         stage_id = message_as_json["stage_id"]
+        stage_id = stage_id.to_s
         
-        url = "https://api.pipedrive.com/v1/stages/#{stage_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
-                
-        uri = URI.parse(url)
-        request = Net::HTTP::Get.new(uri)
-        
-        req_options = {
-          use_ssl: uri.scheme == "https",
-        }
-        
-        response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
-          http.request(request)
-        end
-        
-        if response.is_a?(Net::HTTPSuccess)
-          answer = JSON.parse(response.body)
-          data = answer["data"]
-          if data["name"] == "Pipeline"
-            url = "https://api.pipedrive.com/v1/persons/#{person_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
-            uri = URI.parse(url)
-            request = Net::HTTP::Get.new(uri)
-            
-            req_options = {
-              use_ssl: uri.scheme == "https",
-            }
-            
-            response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
-              http.request(request)
+        if stage_ids.include?(stage_id)  
+          url = "https://api.pipedrive.com/v1/persons/#{person_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
+          uri = URI.parse(url)
+          request = Net::HTTP::Get.new(uri)
+          
+          req_options = {
+            use_ssl: uri.scheme == "https",
+          }
+          
+          response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+            http.request(request)
+          end
+          
+          if response.is_a?(Net::HTTPSuccess)
+            answer = JSON.parse(response.body)
+            data = answer["data"]
+            phones = data["phone"]
+            emails = data["email"]
+
+            items = name_lastname.split(" ")
+
+            if items.size > 1
+              name = items[0]
+              lastname = items[1...items.size].join(" ")
+            else
+              name = name_lastname
+              lastname = ""
             end
-            
-            if response.is_a?(Net::HTTPSuccess)
-              answer = JSON.parse(response.body)
-              data = answer["data"]
-              phones = data["phone"]
-              emails = data["email"]
 
-              items = name_lastname.split(" ")
+            phone = phones.size > 0 ? phones[0]["value"] : ""
+            email = emails.size > 0 ? emails[0]["value"] : ""
 
-              if items.size > 1
-                name = items[0]
-                lastname = items[1...items.size].join(" ")
-              else
-                name = name_lastname
-                lastname = ""
-              end
+            # CREATING THE LOAN IN ENCOMPASS
+            access_token = admin_access_token
+                          
+            if !access_token.nil?
+              body = {
+                applicationTakenMethodType: "Internet",
+                applications: [{
+                  borrower: {
+                    firstName: name,
+                    lastName: lastname,
+                    emailAddressText: email,
+                    homePhoneNumber: phone
 
-              phone = phones.size > 0 ? phones[0]["value"] : ""
-              email = emails.size > 0 ? emails[0]["value"] : ""
+                  }
+                }]
+              }
+              loan_guid = create_loan(access_token, body)
 
-              # CREATING THE LOAN IN ENCOMPASS
-              access_token = admin_access_token
-                            
-              if !access_token.nil?
-                body = {
-                  applicationTakenMethodType: "Internet",
-                  applications: [{
-                    borrower: {
-                      firstName: name,
-                      lastName: lastname,
-                      emailAddressText: email,
-                      homePhoneNumber: phone
+              if !loan_guid.nil?
+                response = assign_loan_associate_milestone(access_token, loan_guid, "82a8bd4c-c449-4bdc-8c14-7845c869e045", {
+                  id: "sgarcia",
+                  roleName: "Loan Officer",
+                  loanAssociateType: "User"
+                }, false)
 
-                    }
-                  }]
-                }
-                loan_guid = create_loan(access_token, body)
-
-                if !loan_guid.nil?
+                if !response.nil?
                   filter = [
                     "364",
                     "1172",
@@ -118,7 +113,7 @@ class WebhookJob < ApplicationJob
                     "2",
                     "912"
                   ]
-
+  
                   loan_fields = fields_reader(access_token, loan_guid, filter)
                   if !loan_fields.nil?
                     loan_number, loan_purpose, loan_type, interest_rate, current_address, 
@@ -128,7 +123,7 @@ class WebhookJob < ApplicationJob
                     current_address_fields = []
                     subject_property_address_fields = []
                     employer_address_fields = []
-
+  
                     loan_fields.each do |item|
                       if item["fieldId"] == "364"
                         loan_number = item["value"]
@@ -170,8 +165,6 @@ class WebhookJob < ApplicationJob
                       end
                     end
                     
-                    deal_id = message_as_json["deal_id"]
-
                     url = "https://api.pipedrive.com/v1/deals/#{deal_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
                     uri = URI.parse(url)
                     request = Net::HTTP::Put.new(uri, 'Content-Type' => 'application/json')
@@ -194,7 +187,7 @@ class WebhookJob < ApplicationJob
                       '7494f8dbd3435031ab6925c296912c20573617f4': (ltv.nil? ? "" : ltv)
                     }
                     request.body = JSON.dump(body)
-
+  
                     req_options = {
                       use_ssl: uri.scheme == "https",
                     }
@@ -210,26 +203,94 @@ class WebhookJob < ApplicationJob
                       p response
                       p response.body
                     end
-
                   else
                     p "ERROR OBTAINING LOAN INFORMATION"
                   end
-
                 else
-                  p "ERROR CREATING LOAN"
+                  p "ERROR ASSOCIATING LOAN TO MILESTONE"
                 end
-
-                token_revocation(access_token)
               else
-                p "ERROR OBTAINING ACCESS TOKEN"
+                p "ERROR CREATING LOAN"
               end
+
+              token_revocation(access_token)
             else
-              p "ERROR REQUESTING PERSON INFORMATION FROM PIPEDRIVE"    
-            end    
-          end
-        else
-          p "ERROR REQUESTING STAGE INFORMATION FROM PIPEDRIVE"
+              p "ERROR OBTAINING ACCESS TOKEN"
+            end
+          else
+            p "ERROR REQUESTING PERSON INFORMATION FROM PIPEDRIVE"    
+          end    
         end
+      elsif !is_bulk_update
+        stage_id = message_as_json["stage_id"]
+        stage_id = stage_id.to_s
+        files_count = message_as_json["files_count"]
+
+        if stage_ids.include?(stage_id)
+          if files_count > 0
+            sw = true
+            start = 0
+            access_token = nil
+
+            while sw
+              url = "https://api.pipedrive.com/v1/deals/#{deal_id}/files?start=#{start}&api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
+              uri = URI.parse(url)
+              request = Net::HTTP::Get.new(uri)
+              
+              req_options = {
+                use_ssl: uri.scheme == "https"
+              }
+              
+              response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+                http.request(request)
+              end
+              
+              if response.is_a?(Net::HTTPSuccess)
+                answer = JSON.parse(response.body)
+                data = answer["data"]
+                
+                data.each do |item|
+                  file_id = item["id"]
+                  file_name = item["remote_id"]
+                  url_to_download_file = item["url"]
+
+                  items = FileQueue.where(file_id: item["id"])
+
+                  if items.count == 0
+                    # The file must be uploaded to Encompass
+                    if access_token.nil?
+                      access_token = admin_access_token
+                    end
+
+                    if !loan_is_open(access_token, loan_guid)
+                      file = open(url_to_download_file)
+                      file = file.read
+                      upload_document_to_encompass(access_token, encompass_loan_guid, filename, file)
+                      fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, saved_encompass: true, url_to_download_file: url_to_download_file)
+                      fq.save
+                    else
+                      p "LOAN IS OPEN, QUEQUING FILE TO BE UPLOADED TO ENCOMPASS, LOAN GUID: #{encompass_loan_guid}, FILE ID: #{file_id}"
+                      fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, url_to_download_file: url_to_download_file)
+                      fq.save
+                    end                      
+                  end
+                end
+                
+                pagination = additional_data["pagination"]
+                more_items_in_collection = pagination["more_items_in_collection"]
+                if more_items_in_collection
+                  start_temp = pagination["start"]
+                  limit = pagination["limit"]
+                  next_temp = start_temp + limit + 1
+                  start = next_temp.to_s
+                end
+                sw = more_items_in_collection
+              else
+                p "ERROR REQUESTING FILES FROM A DEAL FROM PIPEDRIVE"      
+              end
+            end             
+          end
+        end        
       end
     end
   end
