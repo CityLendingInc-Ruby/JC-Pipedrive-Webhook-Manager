@@ -18,12 +18,12 @@ class FileQueueJob < ApplicationJob
               
         if !access_token.nil?
           if !loan_is_open(access_token, loan_guid)
-            file = open(url_to_download_file)
+            file = open(url_to_download_file+"?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}")
             file = file.read
-            answer = upload_document_to_encompass(access_token, encompass_loan_guid, filename, file)
+            answer = upload_document_to_encompass(access_token, loan_guid, file_name, file)
             if answer.size > 0
               answer = answer[0]
-              fq.update_attributes(comment: answer["message"])
+              fq.update_attributes(comment: answer["message"], saved_encompass: true)
             else
               fq.update_attributes(comment: "ERROR UPLOADING FILE TO ENCOMPASS")
             end
@@ -34,7 +34,9 @@ class FileQueueJob < ApplicationJob
           fq.update_attributes(comment: "ERROR UPLOADING DOCUMENTS: MAIN USER / PASSWORD")
         end
       rescue => e
-        fq.update_attributes(comment: "ERROR: " + e.class)
+        p "--------------- ERROR -----------------"
+        p e.class
+        fq.update_attributes(comment: "APP CRASHED")
       end
     end
     token_revocation(access_token) unless access_token.nil?

@@ -261,11 +261,11 @@ class WebhookJob < ApplicationJob
                     if access_token.nil?
                       access_token = admin_access_token
                     end
-
+                    
                     if !loan_is_open(access_token, loan_guid)
-                      file = open(url_to_download_file)
+                      file = open(url_to_download_file+"?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}")
                       file = file.read
-                      upload_document_to_encompass(access_token, encompass_loan_guid, filename, file)
+                      upload_document_to_encompass(access_token, encompass_loan_guid, file_name, file)
                       fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, saved_encompass: true, url_to_download_file: url_to_download_file)
                       fq.save
                     else
