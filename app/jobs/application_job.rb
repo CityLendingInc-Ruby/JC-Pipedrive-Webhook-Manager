@@ -1,6 +1,6 @@
 class ApplicationJob < Jets::Job::Base
   # Adjust to increase the default timeout for all Job classes
-  class_timeout 60
+  class_timeout 90
 
   def admin_access_token
     username = ENV["ADMIN_USERNAME"]
@@ -26,6 +26,35 @@ class ApplicationJob < Jets::Job::Base
     if response.is_a?(Net::HTTPSuccess)
       answer = JSON.parse(response.body)
       admin_user_access_token = answer["access_token"]
+    else
+      nil
+    end
+  end
+
+  def assign_loan_associate_milestone(access_token, loan_guid, milestone_id, loan_associate, sendToQueue = true)
+    log_id = log_id(access_token, loan_guid, milestone_id)
+    if log_id
+      uri = URI.parse("https://api.elliemae.com/encompass/v1/loans/#{loan_guid}/associates/#{log_id}")
+      request = Net::HTTP::Put.new(uri)
+      request["Authorization"] = "Bearer #{access_token}"
+      request.body = JSON.dump(loan_associate)
+      
+      req_options = {
+        use_ssl: uri.scheme == "https",
+      }
+
+      response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+        http.request(request)
+      end
+
+      p "========= ASSIGN LOAN ASSOCIATE MILESTONE ========="
+      p response
+      
+      if sendToQueue && !response.is_a?(Net::HTTPNoContent)
+        response = queue_update_loan_associate(loan_guid, log_id, loan_associate)
+      else
+        response
+      end
     else
       nil
     end
@@ -119,6 +148,8 @@ class ApplicationJob < Jets::Job::Base
     
     req_options = {
       use_ssl: uri.scheme == "https",
+      read_timeout: 60, 
+      open_timeout: 60
     }
     
     response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
@@ -136,12 +167,62 @@ class ApplicationJob < Jets::Job::Base
     end
   end
 
+  def log_id(access_token, loan_guid, milestone_id)
+    uri = URI.parse("https://api.elliemae.com/encompass/v1/loans/#{loan_guid}/milestones")
+    request = Net::HTTP::Get.new(uri)
+    request["Authorization"] = "Bearer #{access_token}"
+    
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+
+    p response.body
+    
+    if response.is_a?(Net::HTTPSuccess)
+      milestones = JSON.parse(response.body)
+      milestone = milestones.select{ |ml| ml["milestoneIdString"] == milestone_id }.first
+      milestone["id"]
+    else
+      nil
+    end
+  end  
+
   def open_file(url)
     url = URI(url)
     Net::HTTP.start(url.host) do |http|
       resp = http.get(url.path)
     end
   end
+
+  def queue_update_loan_associate(loan_guid, log_id, loan_associate)
+    url = (ENV["RAILS_ENV"] == "development") ? "https://3zwq35a02b.execute-api.us-east-1.amazonaws.com/dev" : "https://yfuaoycyxl.execute-api.us-east-1.amazonaws.com/prod"
+    uri = URI.parse("#{url}/update_loan_associate")
+    request = Net::HTTP::Post.new(uri)
+    request["Authorization"] = "Bearer #{ENV["QUEUE_TOKEN"]}"
+    request.body = JSON.dump({
+      loan_guid: loan_guid,
+      log_id: log_id,
+      body: JSON.dump(loan_associate)
+    })
+
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+
+    if response.is_a?(Net::HTTPSuccess)
+      JSON.parse(response.body)
+    else
+      nil
+    end
+  end  
   
   def token_revocation(access_token)
     uri = URI.parse("https://api.elliemae.com/oauth2/v1/token/revocation")

@@ -11,10 +11,6 @@ class WebhookController < ApplicationController
     encompass_loan_guid = current["8804ec59511693ea1a2789605ebb60634367a164"]
     files_count = current["files_count"]
 
-    p "------------------------ FILES COUNT ---------------------"
-    p files_count
-    p "----------------------------------------------------------"
-
     sns = Aws::SNS::Resource.new(region: ENV["REGION"])
     topic = sns.topic('arn:aws:sns:us-east-1:443216489626:jc-pipedrive-webhook-manager-job-processing')
     vars = {"deal_id": deal_id,"is_bulk_update": is_bulk_update,"stage_id": stage_id,"name_lastname": name_lastname,"person_id": person_id, "encompass_loan_guid": encompass_loan_guid, "files_count": files_count}
