@@ -20,10 +20,11 @@ class WebhookJob < ApplicationJob
       is_bulk_update = message_as_json["is_bulk_update"]
       encompass_loan_guid = message_as_json["encompass_loan_guid"]
       deal_id = message_as_json["deal_id"]
+      name_lastname = message_as_json["name_lastname"]
+      person_id = message_as_json["person_id"]
+      files_count = message_as_json["files_count"]
       
       if !is_bulk_update && encompass_loan_guid.blank?
-        name_lastname = message_as_json["name_lastname"]
-        person_id = message_as_json["person_id"]
         stage_id = message_as_json["stage_id"]
         stage_id = stage_id.to_s
         
@@ -184,7 +185,8 @@ class WebhookJob < ApplicationJob
                       '3b7f6087cce987adb91868a2415427ff8786c40d': (birthday.nil? ? "" : birthday),
                       'bffb23c1a52bd7b398aad7589f767450b74f4ff2': (closing_date.nil? ? "" : closing_date),
                       'bd0cfc7013f35386da8c2c7d5fbe78c049a1881d': (piti.nil? ? "" : piti),
-                      '7494f8dbd3435031ab6925c296912c20573617f4': (ltv.nil? ? "" : ltv)
+                      '7494f8dbd3435031ab6925c296912c20573617f4': (ltv.nil? ? "" : ltv),
+                      'b0a83287d1683edaabc0294dd671f76b185ff1eb': name_lastname + " " + phone
                     }
                     request.body = JSON.dump(body)
   
@@ -198,6 +200,12 @@ class WebhookJob < ApplicationJob
                     
                     if response.is_a?(Net::HTTPSuccess)
                       p "EVERYTHING CREATED AND UPDATED"
+
+                      if files_count > 0
+                        p "UPLOADING FILES FROM PIPEDRIVE TO ENCOMPASS"
+
+                        upload_files_pipedrive_encompass(deal_id, encompass_loan_guid)
+                      end
                     else
                       p "ERROR UPDATING DEAL ON PIPEDRIVE"
                       p response
@@ -220,78 +228,135 @@ class WebhookJob < ApplicationJob
           else
             p "ERROR REQUESTING PERSON INFORMATION FROM PIPEDRIVE"    
           end    
+        else
+          # UPDATING CP FIELD
+          update_cp_field(deal_id, person_id, name_lastname)
         end
       elsif !is_bulk_update
         stage_id = message_as_json["stage_id"]
         stage_id = stage_id.to_s
-        files_count = message_as_json["files_count"]
-
+        
         if stage_ids.include?(stage_id)
           if files_count > 0
-            sw = true
-            start = 0
-            access_token = nil
-
-            while sw
-              url = "https://api.pipedrive.com/v1/deals/#{deal_id}/files?start=#{start}&api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
-              uri = URI.parse(url)
-              request = Net::HTTP::Get.new(uri)
-              
-              req_options = {
-                use_ssl: uri.scheme == "https"
-              }
-              
-              response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
-                http.request(request)
-              end
-              
-              if response.is_a?(Net::HTTPSuccess)
-                answer = JSON.parse(response.body)
-                data = answer["data"]
-                
-                data.each do |item|
-                  file_id = item["id"]
-                  file_name = item["remote_id"]
-                  url_to_download_file = item["url"]
-
-                  items = FileQueue.where(file_id: item["id"])
-
-                  if items.count == 0
-                    # The file must be uploaded to Encompass
-                    if access_token.nil?
-                      access_token = admin_access_token
-                    end
-                    
-                    if !loan_is_open(access_token, loan_guid)
-                      file = open(url_to_download_file+"?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}")
-                      file = file.read
-                      upload_document_to_encompass(access_token, encompass_loan_guid, file_name, file)
-                      fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, saved_encompass: true, url_to_download_file: url_to_download_file)
-                      fq.save
-                    else
-                      p "LOAN IS OPEN, QUEQUING FILE TO BE UPLOADED TO ENCOMPASS, LOAN GUID: #{encompass_loan_guid}, FILE ID: #{file_id}"
-                      fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, url_to_download_file: url_to_download_file)
-                      fq.save
-                    end                      
-                  end
-                end
-                
-                pagination = additional_data["pagination"]
-                more_items_in_collection = pagination["more_items_in_collection"]
-                if more_items_in_collection
-                  start_temp = pagination["start"]
-                  limit = pagination["limit"]
-                  next_temp = start_temp + limit + 1
-                  start = next_temp.to_s
-                end
-                sw = more_items_in_collection
-              else
-                p "ERROR REQUESTING FILES FROM A DEAL FROM PIPEDRIVE"      
-              end
-            end             
+            upload_files_pipedrive_encompass(deal_id, encompass_loan_guid)
           end
-        end        
+        end
+        update_cp_field(deal_id, person_id, name_lastname)       
       end
     end
+  end
+
+  private
+  def update_cp_field(deal_id, person_id, name_lastname)
+    url = "https://api.pipedrive.com/v1/persons/#{person_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
+    uri = URI.parse(url)
+    request = Net::HTTP::Get.new(uri)
+    
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+    
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+    
+    if response.is_a?(Net::HTTPSuccess)
+      answer = JSON.parse(response.body)
+      data = answer["data"]
+      phones = data["phone"]
+            
+      phone = phones.size > 0 ? phones[0]["value"] : ""
+      
+      url = "https://api.pipedrive.com/v1/deals/#{deal_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
+      uri = URI.parse(url)
+      request = Net::HTTP::Put.new(uri, 'Content-Type' => 'application/json')
+      body = {
+        'b0a83287d1683edaabc0294dd671f76b185ff1eb': name_lastname + " " + phone
+      }
+      request.body = JSON.dump(body)
+
+      req_options = {
+        use_ssl: uri.scheme == "https",
+      }
+      
+      response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+        http.request(request)
+      end
+      
+      if response.is_a?(Net::HTTPSuccess)
+        p "CP VARIABLE UPDATED"
+      else
+        p "ERROR UPDATING CP VARIABLE"
+        p response
+        p response.body
+      end
+    else
+      p "ERROR OBTAINING PERSON INFORMATION FROM PIPEDRIVE"  
+    end
+  end
+
+  def upload_files_pipedrive_encompass(deal_id, encompass_loan_guid)
+    sw = true
+    start = 0
+    access_token = nil
+
+    while sw
+      url = "https://api.pipedrive.com/v1/deals/#{deal_id}/files?start=#{start}&api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
+      uri = URI.parse(url)
+      request = Net::HTTP::Get.new(uri)
+      
+      req_options = {
+        use_ssl: uri.scheme == "https"
+      }
+      
+      response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+        http.request(request)
+      end
+      
+      if response.is_a?(Net::HTTPSuccess)
+        answer = JSON.parse(response.body)
+        data = answer["data"]
+        
+        data.each do |item|
+          file_id = item["id"]
+          file_name = item["remote_id"]
+          url_to_download_file = item["url"]
+
+          items = FileQueue.where(file_id: item["id"])
+
+          if items.count == 0
+            # The file must be uploaded to Encompass
+            if access_token.nil?
+              access_token = admin_access_token
+            end
+            
+            if !loan_is_open(access_token, encompass_loan_guid)
+              file = open(url_to_download_file+"?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}")
+              file = file.read
+              upload_document_to_encompass(access_token, encompass_loan_guid, file_name, file)
+              fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, saved_encompass: true, url_to_download_file: url_to_download_file)
+              fq.save
+            else
+              p "LOAN IS OPEN, QUEQUING FILE TO BE UPLOADED TO ENCOMPASS, LOAN GUID: #{encompass_loan_guid}, FILE ID: #{file_id}"
+              fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, url_to_download_file: url_to_download_file)
+              fq.save
+            end                      
+          end
+        end
+        
+        pagination = additional_data["pagination"]
+        more_items_in_collection = pagination["more_items_in_collection"]
+        if more_items_in_collection
+          start_temp = pagination["start"]
+          limit = pagination["limit"]
+          next_temp = start_temp + limit + 1
+          start = next_temp.to_s
+        end
+        sw = more_items_in_collection
+      else
+        p "ERROR REQUESTING FILES FROM A DEAL FROM PIPEDRIVE"
+        sw = false
+      end
+    end    
   end
 end
