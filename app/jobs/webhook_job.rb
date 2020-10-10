@@ -316,6 +316,7 @@ class WebhookJob < ApplicationJob
       if response.is_a?(Net::HTTPSuccess)
         answer = JSON.parse(response.body)
         data = answer["data"]
+        additional_data = answer["additional_data"]
         
         data.each do |item|
           file_id = item["id"]
