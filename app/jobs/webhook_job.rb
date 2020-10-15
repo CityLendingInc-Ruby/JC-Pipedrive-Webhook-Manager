@@ -228,10 +228,9 @@ class WebhookJob < ApplicationJob
           else
             p "ERROR REQUESTING PERSON INFORMATION FROM PIPEDRIVE"    
           end    
-        else
-          # UPDATING CP FIELD
-          update_cp_field(deal_id, person_id, name_lastname)
         end
+        # UPDATING CP FIELD
+        update_cp_field(deal_id, person_id, name_lastname)
       elsif !is_bulk_update
         stage_id = message_as_json["stage_id"]
         stage_id = stage_id.to_s
