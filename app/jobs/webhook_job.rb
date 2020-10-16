@@ -331,11 +331,17 @@ class WebhookJob < ApplicationJob
             end
             
             if !loan_is_open(access_token, encompass_loan_guid)
-              file = open(url_to_download_file+"?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}")
-              file = file.read
-              upload_document_to_encompass(access_token, encompass_loan_guid, file_name, file)
-              fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, saved_encompass: true, url_to_download_file: url_to_download_file)
-              fq.save
+              begin
+                file = open(url_to_download_file+"?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}")
+                file = file.read
+                upload_document_to_encompass(access_token, encompass_loan_guid, file_name, file)
+                fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, saved_encompass: true, url_to_download_file: url_to_download_file)
+                fq.save
+              rescue => e
+                p "CRASHED OPENING APP, QUEQUING FILE TO BE UPLOADED TO ENCOMPASS, LOAN GUID: #{encompass_loan_guid}, FILE ID: #{file_id}"
+                fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, url_to_download_file: url_to_download_file)
+                fq.save
+              end
             else
               p "LOAN IS OPEN, QUEQUING FILE TO BE UPLOADED TO ENCOMPASS, LOAN GUID: #{encompass_loan_guid}, FILE ID: #{file_id}"
               fq = FileQueue.new(deal_id: deal_id, file_id: file_id, file_name: file_name, loan_guid: encompass_loan_guid, url_to_download_file: url_to_download_file)
