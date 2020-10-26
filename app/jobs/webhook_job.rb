@@ -266,6 +266,20 @@ class WebhookJob < ApplicationJob
       data = answer["data"]
       nombre_campana_radio_listado = data["80ceec8086891a06d28c49a6aa350813b7f3518b"]
       
+      if nombre_campana_radio_listado == "16"
+        nombre_campana_radio_listado = "Jorge - Sábado" 
+      elsif nombre_campana_radio_listado == "17"
+        nombre_campana_radio_listado = "Carmen - Sábado"
+      elsif nombre_campana_radio_listado == "18"
+        nombre_campana_radio_listado = "Jorge - Días Semana"
+      elsif nombre_campana_radio_listado == "19"
+        nombre_campana_radio_listado = "Jorge Messenger"
+      elsif nombre_campana_radio_listado == "20"
+        nombre_campana_radio_listado = "Jorge - Listado"
+      elsif nombre_campana_radio_listado == "21"
+        nombre_campana_radio_listado = "Carmen - Listado"
+      end
+
       url = "https://api.pipedrive.com/v1/deals/#{deal_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
       uri = URI.parse(url)
       request = Net::HTTP::Put.new(uri, 'Content-Type' => 'application/json')
