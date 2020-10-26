@@ -231,6 +231,7 @@ class WebhookJob < ApplicationJob
         end
         # UPDATING CP FIELD
         update_cp_field(deal_id, person_id, name_lastname)
+        update_campaign_name(deal_id)
       elsif !is_bulk_update
         stage_id = message_as_json["stage_id"]
         stage_id = stage_id.to_s
@@ -240,12 +241,59 @@ class WebhookJob < ApplicationJob
             upload_files_pipedrive_encompass(deal_id, encompass_loan_guid)
           end
         end
-        update_cp_field(deal_id, person_id, name_lastname)       
+        update_cp_field(deal_id, person_id, name_lastname)
+        update_campaign_name(deal_id)
       end
     end
   end
 
   private
+  def update_campaign_name(deal_id)
+    url = "https://api.pipedrive.com/v1/deals/#{deal_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
+    uri = URI.parse(url)
+    request = Net::HTTP::Get.new(uri)
+    
+    req_options = {
+      use_ssl: uri.scheme == "https",
+    }
+    
+    response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+      http.request(request)
+    end
+    
+    if response.is_a?(Net::HTTPSuccess)
+      answer = JSON.parse(response.body)
+      data = answer["data"]
+      nombre_campana_radio_listado = data["80ceec8086891a06d28c49a6aa350813b7f3518b"]
+      
+      if !nombre_campana_radio_listado.nil?
+        if nombre_campana_radio_listado != ""
+          url = "https://api.pipedrive.com/v1/deals/#{deal_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
+          uri = URI.parse(url)
+          request = Net::HTTP::Put.new(uri, 'Content-Type' => 'application/json')
+          body = {
+            'fbf14eaf432d7b6ab2a6fa8cac8b6c2ad24d6865': nombre_campana_radio_listado
+          }
+          request.body = JSON.dump(body)
+
+          req_options = {
+            use_ssl: uri.scheme == "https",
+          }
+          
+          response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+            http.request(request)
+          end
+          
+          if response.is_a?(Net::HTTPSuccess)
+            p "UPDATED CAMPAIGN NAME, OK"
+          else
+            p "UPDATED CAMPAIGN NAME, ERROR"
+          end
+        end
+      end
+    end    
+  end
+
   def update_cp_field(deal_id, person_id, name_lastname)
     url = "https://api.pipedrive.com/v1/persons/#{person_id}?api_token=#{ENV['PIPEDRIVE_API_TOKEN']}"
     uri = URI.parse(url)
