@@ -247,16 +247,19 @@ class ApplicationJob < Jets::Job::Base
     end
   end
 
-  def upload_document_to_encompass(access_token, loan_guid, filename, file)
+  def upload_document_to_encompass(access_token, loan_guid, filename, contentType, size, file)
     filename = filename.encode(Encoding::ASCII, invalid: :replace, undef: :replace, replace: "")
     messages = []
-    uri = URI.parse("https://api.elliemae.com/encompass/v1/loans/#{loan_guid}/attachments/url?view=id")
+    uri = URI.parse("https://api.elliemae.com/encompass/v3/loans/#{loan_guid}/attachmentUploadUrl")
     request = Net::HTTP::Post.new(uri)
     request["Authorization"] = "Bearer #{access_token}"
     request.body = JSON.dump({
-      title: filename,
-      fileWithExtension: filename,
-      createReason: 4
+      file: {
+        name: filename,
+        contentType: contentType,
+        size: size
+      },
+      title: filename
     })
     
     req_options = {
