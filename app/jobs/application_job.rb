@@ -155,6 +155,7 @@ class ApplicationJob < Jets::Job::Base
     response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
       http.request(request)
     end
+    
     if response.is_a?(Net::HTTPSuccess)
       loan_response = JSON.parse(response.body)
       if loan_response.has_key?("id")

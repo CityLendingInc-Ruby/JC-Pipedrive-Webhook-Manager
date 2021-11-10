@@ -9,6 +9,16 @@ class FileQueueJob < ApplicationJob
       p fq
       p "==============="
       begin
+
+        LOAN_GUID_EXCEPTIONS = [
+          "e23c509a-1b2c-42d4-9d3d-1f725fd04f5a",
+          "f946aef0-5b6c-4863-9cd0-b604fb75dce7",
+          "8d874e2c-9cb2-41e6-88fc-f8ce476cb3fb",
+          "220c8a75-914f-4307-be4d-c602cbdf88a0"
+        ]
+        
+        next if LOAN_GUID_EXCEPTIONS.include?(fq.loan_guid)
+
         deal_id = fq.deal_id
         file_id = fq.file_id
         file_name = fq.file_name
