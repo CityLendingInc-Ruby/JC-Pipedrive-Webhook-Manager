@@ -1,10 +1,10 @@
 source "https://rubygems.org"
 
-gem 'jets', '2.3.16'
+gem 'jets'
 
-gem 'dynamoid', '3.5.0'
-gem 'rabl', '0.14.3'
-gem 'oj', '3.10.6'
+gem 'dynamoid'
+gem 'rabl'
+gem 'oj'
 
 #gem 'rubyzip', '2.3.0'
 #gem 'zip-zip', '0.3'
